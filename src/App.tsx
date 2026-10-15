@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from '@/components/layout/AppLayout';
 import Dashboard from '@/pages/Dashboard';
 import Markets from '@/pages/Markets';
+import ChartLab from '@/pages/ChartLab';
 import Portfolio from '@/pages/Portfolio';
 import PaperTrading from '@/pages/PaperTrading';
 import Research from '@/pages/Research';
@@ -16,6 +17,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/markets" element={<Markets />} />
+          <Route path="/chart-lab" element={<ChartLab />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/paper-trading" element={<PaperTrading />} />
           <Route path="/research" element={<Research />} />

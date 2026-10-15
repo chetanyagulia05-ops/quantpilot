@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
   TrendingUp,
+  LineChart,
   Briefcase,
   ArrowLeftRight,
   Search,
@@ -15,6 +16,7 @@ import {
 const navItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
   { label: 'Markets', path: '/markets', icon: TrendingUp },
+  { label: 'Chart Lab', path: '/chart-lab', icon: LineChart },
   { label: 'Portfolio', path: '/portfolio', icon: Briefcase },
   { label: 'Paper Trading', path: '/paper-trading', icon: ArrowLeftRight },
   { label: 'Research', path: '/research', icon: Search },
