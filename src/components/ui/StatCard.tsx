@@ -10,6 +10,7 @@ interface StatCardProps {
   icon?: ReactNode;
   prefix?: string;
   isCurrency?: boolean;
+  currency?: string;
   className?: string;
 }
 
@@ -20,9 +21,10 @@ export default function StatCard({
   changePct,
   icon,
   isCurrency = false,
+  currency,
   className,
 }: StatCardProps) {
-  const displayValue = isCurrency && typeof value === 'number' ? formatCurrency(value) : value;
+  const displayValue = isCurrency && typeof value === 'number' ? formatCurrency(value, currency) : value;
 
   return (
     <Card className={cn('relative overflow-hidden', className)}>
@@ -35,7 +37,7 @@ export default function StatCard({
               {change !== undefined && (
                 <span className={cn('text-sm font-medium', getChangeColor(change))}>
                   {change >= 0 ? '+' : ''}
-                  {isCurrency ? formatCurrency(change) : change.toFixed(2)}
+                  {isCurrency ? formatCurrency(change, currency) : change.toFixed(2)}
                 </span>
               )}
               {changePct !== undefined && (

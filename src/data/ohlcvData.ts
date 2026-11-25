@@ -17,16 +17,17 @@ export interface TickerInfo {
 }
 
 export const SUPPORTED_TICKERS: TickerInfo[] = [
+  { symbol: 'RELIANCE', name: 'Reliance Industries Ltd.', exchange: 'NSE', sector: 'Energy & Digital', basePrice: 2980.50, volatility: 0.018, currency: 'INR' },
+  { symbol: 'TCS', name: 'Tata Consultancy Services', exchange: 'NSE', sector: 'IT Services', basePrice: 4120.00, volatility: 0.014, currency: 'INR' },
+  { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd.', exchange: 'NSE', sector: 'Financial Services', basePrice: 1642.00, volatility: 0.016, currency: 'INR' },
+  { symbol: 'INFY', name: 'Infosys Limited', exchange: 'NSE', sector: 'IT Services', basePrice: 1625.00, volatility: 0.017, currency: 'INR' },
+  { symbol: 'TATAMOTORS', name: 'Tata Motors Ltd.', exchange: 'NSE', sector: 'Automotive', basePrice: 935.00, volatility: 0.024, currency: 'INR' },
+  { symbol: 'NIFTY50', name: 'NIFTY 50 Index', exchange: 'NSE Benchmark', sector: 'Indian Broad Market', basePrice: 22450.00, volatility: 0.011, currency: 'INR' },
   { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Semiconductors', basePrice: 682.35, volatility: 0.028, currency: 'USD' },
   { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Consumer Electronics', basePrice: 192.53, volatility: 0.015, currency: 'USD' },
-  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Software', basePrice: 398.72, volatility: 0.018, currency: 'USD' },
+  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Enterprise Software', basePrice: 398.72, volatility: 0.018, currency: 'USD' },
   { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Automotive / EV', basePrice: 218.89, volatility: 0.035, currency: 'USD' },
-  { symbol: 'GOOGL', name: 'Alphabet Inc.', exchange: 'NASDAQ', sector: 'Internet', basePrice: 155.72, volatility: 0.019, currency: 'USD' },
-  { symbol: 'AMZN', name: 'Amazon.com Inc.', exchange: 'NASDAQ', sector: 'E-Commerce / Cloud', basePrice: 178.25, volatility: 0.022, currency: 'USD' },
-  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE Arca', sector: 'Broad Market ETF', basePrice: 478.38, volatility: 0.011, currency: 'USD' },
-  { symbol: 'QQQ', name: 'Invesco QQQ Trust (NASDAQ 100)', exchange: 'NASDAQ', sector: 'Tech ETF', basePrice: 412.50, volatility: 0.016, currency: 'USD' },
-  { symbol: 'RELIANCE', name: 'Reliance Industries Ltd.', exchange: 'NSE', sector: 'Energy & Tech', basePrice: 2950.0, volatility: 0.018, currency: 'INR' },
-  { symbol: 'TCS', name: 'Tata Consultancy Services', exchange: 'BSE / NSE', sector: 'IT Services', basePrice: 4120.0, volatility: 0.014, currency: 'INR' },
+  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE Arca', sector: 'US Broad Market', basePrice: 478.38, volatility: 0.011, currency: 'USD' },
 ];
 
 /**

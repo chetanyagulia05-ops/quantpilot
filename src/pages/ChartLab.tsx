@@ -1,15 +1,11 @@
-// ============================================================
-// QuantPilot — Professional Chart Lab Workspace
-// Multi-asset search, interactive candlestick/indicator canvas,
-// natural-language AI strategy copilot, and scenario invalidation.
-// ============================================================
-
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search,
   BookmarkCheck,
   RefreshCw,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import DemoBanner from '@/components/ui/DemoBanner';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -103,13 +99,40 @@ const INITIAL_INDICATORS: IndicatorConfig[] = [
 ];
 
 export default function ChartLab() {
-  const [selectedTicker, setSelectedTicker] = useState<TickerInfo>(SUPPORTED_TICKERS[0]); // NVDA default
+  const [searchParams] = useSearchParams();
+  const { currentUser } = useAuth();
+  const userId = currentUser.id;
+
+  const urlSymbol = searchParams.get('symbol');
+
+  const [selectedTicker, setSelectedTicker] = useState<TickerInfo>(() => {
+    if (urlSymbol) {
+      const match = SUPPORTED_TICKERS.find(
+        (t) => t.symbol.toLowerCase() === urlSymbol.toLowerCase()
+      );
+      if (match) return match;
+    }
+    return SUPPORTED_TICKERS[0]; // RELIANCE default
+  });
+
+  // Sync if URL query changes
+  useEffect(() => {
+    if (urlSymbol) {
+      const match = SUPPORTED_TICKERS.find(
+        (t) => t.symbol.toLowerCase() === urlSymbol.toLowerCase()
+      );
+      if (match && match.symbol !== selectedTicker.symbol) {
+        setSelectedTicker(match);
+      }
+    }
+  }, [urlSymbol, selectedTicker.symbol]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [timeframe, setTimeframe] = useState<Timeframe>(() => {
     try {
-      const saved = localStorage.getItem('quantpilot_chart_layout_demo-user-001');
+      const saved = localStorage.getItem(`quantpilot_chart_layout_${userId}`);
       if (saved) {
         const parsed: SavedChartLayout = JSON.parse(saved);
         if (parsed.timeframe) return parsed.timeframe;
@@ -122,7 +145,7 @@ export default function ChartLab() {
 
   const [chartType, setChartType] = useState<ChartType>(() => {
     try {
-      const saved = localStorage.getItem('quantpilot_chart_layout_demo-user-001');
+      const saved = localStorage.getItem(`quantpilot_chart_layout_${userId}`);
       if (saved) {
         const parsed: SavedChartLayout = JSON.parse(saved);
         if (parsed.chartType) return parsed.chartType;
@@ -135,7 +158,7 @@ export default function ChartLab() {
 
   const [indicators, setIndicators] = useState<IndicatorConfig[]>(() => {
     try {
-      const saved = localStorage.getItem('quantpilot_chart_layout_demo-user-001');
+      const saved = localStorage.getItem(`quantpilot_chart_layout_${userId}`);
       if (saved) {
         const parsed: SavedChartLayout = JSON.parse(saved);
         if (parsed.indicators) return parsed.indicators;
@@ -191,14 +214,14 @@ export default function ChartLab() {
   // Save current layout to user account
   const handleSaveLayout = () => {
     const layout: SavedChartLayout = {
-      userId: 'demo-user-001',
+      userId,
       symbol: selectedTicker.symbol,
       timeframe,
       chartType,
       indicators,
       updatedAt: new Date().toISOString(),
     };
-    localStorage.setItem('quantpilot_chart_layout_demo-user-001', JSON.stringify(layout));
+    localStorage.setItem(`quantpilot_chart_layout_${userId}`, JSON.stringify(layout));
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 2500);
   };
@@ -380,7 +403,7 @@ export default function ChartLab() {
             <div className="hidden sm:block">
               <span className="text-[10px] text-text-muted block">Session Range</span>
               <span className="font-mono text-text-secondary">
-                ${latestCandle.low.toFixed(1)} - ${latestCandle.high.toFixed(1)}
+                {formatCurrency(latestCandle.low, selectedTicker.currency)} - {formatCurrency(latestCandle.high, selectedTicker.currency)}
               </span>
             </div>
             <div className="hidden sm:block">

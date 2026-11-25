@@ -15,6 +15,7 @@ interface DataTableProps<T> {
   keyExtractor: (item: T) => string;
   onRowClick?: (item: T) => void;
   compact?: boolean;
+  emptyMessage?: string;
   className?: string;
 }
 
@@ -26,6 +27,7 @@ export default function DataTable<T>({
   keyExtractor,
   onRowClick,
   compact = false,
+  emptyMessage = 'No data available',
   className,
 }: DataTableProps<T>) {
   const alignClass = (align?: string) => {
@@ -54,31 +56,42 @@ export default function DataTable<T>({
             ))}
           </tr>
         </thead>
-        <tbody>
-          {data.map((item) => (
-            <tr
-              key={keyExtractor(item)}
-              className={cn(
-                'border-b border-border-light transition-colors',
-                onRowClick && 'cursor-pointer hover:bg-surface-secondary'
-              )}
-              onClick={() => onRowClick?.(item)}
-            >
-              {columns.map((col) => (
-                <td
-                  key={col.key}
-                  className={cn(
-                    'text-sm',
-                    alignClass(col.align),
-                    compact ? 'px-3 py-2' : 'px-4 py-3.5',
-                    col.className
-                  )}
-                >
-                  {col.render(item)}
-                </td>
-              ))}
+        <tbody className="divide-y divide-border">
+          {data.length === 0 ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="py-8 text-center text-sm text-text-muted italic"
+              >
+                {emptyMessage}
+              </td>
             </tr>
-          ))}
+          ) : (
+            data.map((item) => (
+              <tr
+                key={keyExtractor(item)}
+                className={cn(
+                  'transition-colors',
+                  onRowClick && 'cursor-pointer hover:bg-surface-secondary'
+                )}
+                onClick={() => onRowClick?.(item)}
+              >
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={cn(
+                      'text-sm',
+                      alignClass(col.align),
+                      compact ? 'px-3 py-2' : 'px-4 py-3.5',
+                      col.className
+                    )}
+                  >
+                    {col.render(item)}
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </div>

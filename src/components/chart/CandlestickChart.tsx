@@ -12,6 +12,7 @@ import type {
   SupportResistanceLevel,
 } from '@/types/chart';
 import { formatCurrency, formatVolume } from '@/lib/utils';
+import { useTheme } from '@/context/ThemeContext';
 
 interface CandlestickChartProps {
   candles: CandleData[];
@@ -26,8 +27,11 @@ export default function CandlestickChart({
   chartType,
   indicatorSeries,
   supportResistanceLevels = [],
-  currency = 'USD',
+  currency = 'INR',
 }: CandlestickChartProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -138,11 +142,15 @@ export default function CandlestickChart({
     // --- RENDER BACKGROUND & GRID ---
     ctx.clearRect(0, 0, width, height);
 
+    const gridColor = isDark ? '#1e293b' : '#f1f5f9';
+    const textColor = isDark ? '#94a3b8' : '#64748b';
+    const dividerColor = isDark ? '#1e293b' : '#e2e8f0';
+
     // Horizontal Price Grid Lines
     const gridLines = 5;
-    ctx.strokeStyle = '#f1f5f9';
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = textColor;
     ctx.font = '10px -apple-system, sans-serif';
     ctx.textAlign = 'left';
 
@@ -155,7 +163,7 @@ export default function CandlestickChart({
       ctx.lineTo(width - paddingRight, y);
       ctx.stroke();
 
-      ctx.fillText(formatCurrency(priceVal, currency), width - paddingRight + 6, y + 3);
+      ctx.fillText(formatCurrency(priceVal, currency, true), width - paddingRight + 6, y + 3);
     }
 
     // Support & Resistance Lines
@@ -267,13 +275,13 @@ export default function CandlestickChart({
     });
 
     // --- RENDER VOLUME PANE ---
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = dividerColor;
     ctx.beginPath();
     ctx.moveTo(paddingLeft, volumeTop);
     ctx.lineTo(width - paddingRight, volumeTop);
     ctx.stroke();
 
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = textColor;
     ctx.fillText('Volume', paddingLeft, volumeTop - 4);
 
     candles.forEach((c, idx) => {
@@ -288,7 +296,7 @@ export default function CandlestickChart({
 
     // --- RENDER SUBPLOT (RSI / MACD) ---
     if (hasSubplot) {
-      ctx.strokeStyle = '#e2e8f0';
+      ctx.strokeStyle = dividerColor;
       ctx.beginPath();
       ctx.moveTo(paddingLeft, subplotTop);
       ctx.lineTo(width - paddingRight, subplotTop);
@@ -296,7 +304,7 @@ export default function CandlestickChart({
 
       subplotSeries.forEach((series) => {
         if (series.name.startsWith('RSI')) {
-          ctx.fillStyle = '#94a3b8';
+          ctx.fillStyle = textColor;
           ctx.fillText('RSI (14)', paddingLeft, subplotTop - 4);
 
           // 70 / 30 reference lines
@@ -305,7 +313,7 @@ export default function CandlestickChart({
 
           ctx.save();
           ctx.setLineDash([3, 3]);
-          ctx.strokeStyle = '#cbd5e1';
+          ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
           ctx.beginPath();
           ctx.moveTo(paddingLeft, rsiY70);
           ctx.lineTo(width - paddingRight, rsiY70);
@@ -336,7 +344,7 @@ export default function CandlestickChart({
           });
           ctx.stroke();
         } else if (series.name.startsWith('MACD')) {
-          ctx.fillStyle = '#94a3b8';
+          ctx.fillStyle = textColor;
           ctx.fillText('MACD (12, 26, 9)', paddingLeft, subplotTop - 4);
 
           // Scale for MACD
@@ -352,7 +360,7 @@ export default function CandlestickChart({
             subplotTop + (1 - (0 - macdMin) / (macdMax - macdMin)) * subplotPaneHeight;
 
           // Zero line
-          ctx.strokeStyle = '#cbd5e1';
+          ctx.strokeStyle = isDark ? '#334155' : '#cbd5e1';
           ctx.beginPath();
           ctx.moveTo(paddingLeft, macdZeroY);
           ctx.lineTo(width - paddingRight, macdZeroY);
@@ -417,7 +425,7 @@ export default function CandlestickChart({
     }
 
     // --- RENDER DATES ALONG X-AXIS ---
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = textColor;
     ctx.textAlign = 'center';
     const dateStep = Math.max(1, Math.floor(candleCount / 6));
     for (let i = 0; i < candleCount; i += dateStep) {
@@ -430,7 +438,7 @@ export default function CandlestickChart({
       const x = indexToX(hoverIndex);
       ctx.save();
       ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = '#64748b';
+      ctx.strokeStyle = isDark ? '#cbd5e1' : '#64748b';
       ctx.lineWidth = 1;
 
       // Vertical line
@@ -458,6 +466,7 @@ export default function CandlestickChart({
     hoverIndex,
     crosshairY,
     hasSubplot,
+    isDark,
   ]);
 
   // Mouse Move Interaction Handler
@@ -542,7 +551,7 @@ export default function CandlestickChart({
               return (
                 <span key={s.id} className="flex items-center gap-1 font-mono text-[11px]" style={{ color: s.color }}>
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
-                  {s.name}: ${val.toFixed(2)}
+                  {s.name}: {currency === 'INR' ? '₹' : '$'}{val.toFixed(2)}
                 </span>
               );
             })}

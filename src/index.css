@@ -1,37 +1,104 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --surface: #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-card: #ffffff;
+  --surface-muted: #f1f5f9;
+
+  --border: #e2e8f0;
+  --border-light: #f1f5f9;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  --brand: #4f46e5;
+  --brand-light: #6366f1;
+  --brand-dark: #3730a3;
+
+  --gain: #059669;
+  --gain-light: #d1fae5;
+  --loss: #dc2626;
+  --loss-light: #fee2e2;
+
+  --warning: #d97706;
+  --warning-light: #fef3c7;
+  --info: #0284c7;
+  --info-light: #e0f2fe;
+}
+
+.dark {
+  --surface: #0b1120;
+  --surface-secondary: #0f172a;
+  --surface-card: #131d35;
+  --surface-muted: #1e293b;
+
+  --border: #1e293b;
+  --border-light: #182234;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --brand: #6366f1;
+  --brand-light: #818cf8;
+  --brand-dark: #4f46e5;
+
+  --gain: #10b981;
+  --gain-light: rgba(16, 185, 129, 0.2);
+  --loss: #ef4444;
+  --loss-light: rgba(239, 68, 68, 0.2);
+
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.2);
+  --info: #38bdf8;
+  --info-light: rgba(56, 189, 248, 0.2);
+}
+
 @theme {
-  --color-brand: #6366f1;
-  --color-brand-light: #818cf8;
-  --color-brand-dark: #4f46e5;
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-dark: var(--brand-dark);
 
-  --color-gain: #10b981;
-  --color-gain-light: #d1fae5;
-  --color-loss: #ef4444;
-  --color-loss-light: #fee2e2;
+  --color-gain: var(--gain);
+  --color-gain-light: var(--gain-light);
+  --color-loss: var(--loss);
+  --color-loss-light: var(--loss-light);
 
-  --color-surface: #ffffff;
-  --color-surface-secondary: #f8fafc;
-  --color-surface-dark: #0f172a;
-  --color-surface-card: #ffffff;
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-card: var(--surface-card);
+  --color-surface-muted: var(--surface-muted);
 
-  --color-border: #e2e8f0;
-  --color-border-light: #f1f5f9;
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
 
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #64748b;
-  --color-text-muted: #94a3b8;
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
 
-  --color-warning: #f59e0b;
-  --color-warning-light: #fef3c7;
-  --color-info: #3b82f6;
-  --color-info-light: #dbeafe;
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-info: var(--info);
+  --color-info-light: var(--info-light);
 }
 
 /* Base styles */
 body {
-  @apply bg-surface-secondary text-text-primary antialiased;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--surface-secondary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Financial Monospace digits for clean number column alignment */
+.font-mono-numbers {
+  font-feature-settings: 'tnum' on, 'lnum' on;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* Scrollbar styling */
@@ -41,18 +108,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  background-color: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-border rounded-full;
+  background-color: var(--border);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-text-muted;
+  background-color: var(--text-muted);
 }
 
-/* Custom utilities */
 @utility scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

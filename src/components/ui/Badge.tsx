@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'gain' | 'loss' | 'neutral' | 'info' | 'warning';
+  variant?: 'gain' | 'loss' | 'neutral' | 'info' | 'warning' | 'brand';
   size?: 'sm' | 'md';
   className?: string;
 }
@@ -10,9 +10,10 @@ interface BadgeProps {
 const variantStyles = {
   gain: 'bg-gain-light text-gain',
   loss: 'bg-loss-light text-loss',
-  neutral: 'bg-gray-100 text-text-secondary',
+  neutral: 'bg-surface-secondary text-text-secondary',
   info: 'bg-info-light text-info',
   warning: 'bg-warning-light text-warning',
+  brand: 'bg-brand/10 text-brand border border-brand/20',
 };
 
 const sizeStyles = {
