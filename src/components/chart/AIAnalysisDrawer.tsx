@@ -23,6 +23,7 @@ import { formatCurrency } from '@/lib/utils';
 interface AIAnalysisDrawerProps {
   report: TechnicalAnalysisReport | null;
   loading: boolean;
+  currency?: string;
   onRunAnalysis: () => void;
   onExecuteCommand: (prompt: string) => void;
 }
@@ -30,6 +31,7 @@ interface AIAnalysisDrawerProps {
 export default function AIAnalysisDrawer({
   report,
   loading,
+  currency = 'INR',
   onRunAnalysis,
   onExecuteCommand,
 }: AIAnalysisDrawerProps) {
@@ -314,7 +316,7 @@ export default function AIAnalysisDrawer({
                     }`}
                   >
                     <span className="font-semibold">{lvl.type}:</span>
-                    <span className="font-mono font-bold">${lvl.price.toFixed(2)}</span>
+                    <span className="font-mono font-bold">{formatCurrency(lvl.price, currency)}</span>
                     <span className="text-[10px] text-text-muted">({lvl.strength}★ touch)</span>
                   </div>
                 ))}

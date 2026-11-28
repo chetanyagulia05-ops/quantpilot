@@ -10,10 +10,33 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+# Environment & Credentials
 *.local
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.secret
+*credentials*.json
+*service-account*.json
+
+# Python & Quant Engine Runtime
+quant-engine/.venv
+.venv/
+venv/
+__pycache__/
+quant-engine/__pycache__
+*.py[cod]
+
+# Local Server Runtime Store & Databases
+server/data/
+server/data/*.json
+*.sqlite
+*.sqlite3
+*.db
 
 # Editor directories and files
 .vscode/*

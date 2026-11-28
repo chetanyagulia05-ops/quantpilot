@@ -1,10 +1,11 @@
 import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 /**
- * Merge Tailwind class names conditionally.
+ * Merge Tailwind class names conditionally with conflict resolution (shadcn/ui standard).
  */
 export function cn(...inputs: ClassValue[]): string {
-  return clsx(inputs);
+  return twMerge(clsx(inputs));
 }
 
 /**

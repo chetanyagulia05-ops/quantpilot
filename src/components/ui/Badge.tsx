@@ -1,25 +1,38 @@
+// ============================================================
+// QuantPilot — shadcn/ui Badge Variants
+// ============================================================
+
+import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
-interface BadgeProps {
+const badgeVariants = cva(
+  'inline-flex items-center gap-1 rounded-md border font-mono text-[11px] font-medium leading-none transition-colors',
+  {
+    variants: {
+      variant: {
+        gain: 'border-gain/25 bg-gain-light text-gain',
+        loss: 'border-loss/25 bg-loss-light text-loss',
+        neutral: 'border-border bg-secondary text-secondary-foreground',
+        info: 'border-info/25 bg-info-light text-info',
+        warning: 'border-warning/25 bg-warning-light text-warning',
+        brand: 'border-brand/30 bg-brand/10 text-brand',
+      },
+      size: {
+        sm: 'px-1.5 py-0.5 text-[10px]',
+        md: 'px-2 py-1 text-xs',
+      },
+    },
+    defaultVariants: {
+      variant: 'neutral',
+      size: 'sm',
+    },
+  }
+);
+
+interface BadgeProps extends VariantProps<typeof badgeVariants> {
   children: React.ReactNode;
-  variant?: 'gain' | 'loss' | 'neutral' | 'info' | 'warning' | 'brand';
-  size?: 'sm' | 'md';
   className?: string;
 }
-
-const variantStyles = {
-  gain: 'bg-gain-light text-gain',
-  loss: 'bg-loss-light text-loss',
-  neutral: 'bg-surface-secondary text-text-secondary',
-  info: 'bg-info-light text-info',
-  warning: 'bg-warning-light text-warning',
-  brand: 'bg-brand/10 text-brand border border-brand/20',
-};
-
-const sizeStyles = {
-  sm: 'px-1.5 py-0.5 text-xs',
-  md: 'px-2 py-1 text-sm',
-};
 
 export default function Badge({
   children,
@@ -27,16 +40,5 @@ export default function Badge({
   size = 'sm',
   className,
 }: BadgeProps) {
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full font-medium',
-        variantStyles[variant],
-        sizeStyles[size],
-        className
-      )}
-    >
-      {children}
-    </span>
-  );
+  return <span className={cn(badgeVariants({ variant, size }), className)}>{children}</span>;
 }

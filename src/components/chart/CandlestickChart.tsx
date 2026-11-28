@@ -71,8 +71,8 @@ export default function CandlestickChart({
     ctx.scale(dpr, dpr);
 
     // Layout configuration
-    const paddingRight = 65;
-    const paddingLeft = 10;
+    const paddingRight = 68;
+    const paddingLeft = 32;
     const paddingTop = 25;
     const paddingBottom = 20;
 
@@ -184,7 +184,8 @@ export default function CandlestickChart({
         ctx.fillRect(width - paddingRight, y - 8, paddingRight - 4, 16);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 9px sans-serif';
-        ctx.fillText(`$${sr.price.toFixed(1)}`, width - paddingRight + 4, y + 4);
+        const curSym = currency === 'INR' ? '₹' : '$';
+        ctx.fillText(`${curSym}${sr.price.toFixed(1)}`, width - paddingRight + 4, y + 4);
         ctx.restore();
       }
     });

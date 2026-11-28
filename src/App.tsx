@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { MotionConfig } from 'motion/react';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { PortfolioProvider } from '@/context/PortfolioContext';
@@ -15,26 +16,28 @@ import Settings from '@/pages/Settings';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <PortfolioProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route element={<AppLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/markets" element={<Markets />} />
-                <Route path="/chart-lab" element={<ChartLab />} />
-                <Route path="/portfolio" element={<Portfolio />} />
-                <Route path="/paper-trading" element={<PaperTrading />} />
-                <Route path="/research" element={<Research />} />
-                <Route path="/news" element={<News />} />
-                <Route path="/ai-assistant" element={<AIAssistant />} />
-                <Route path="/settings" element={<Settings />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        </PortfolioProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <MotionConfig reducedMotion="user">
+      <ThemeProvider>
+        <AuthProvider>
+          <PortfolioProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route element={<AppLayout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/markets" element={<Markets />} />
+                  <Route path="/chart-lab" element={<ChartLab />} />
+                  <Route path="/portfolio" element={<Portfolio />} />
+                  <Route path="/paper-trading" element={<PaperTrading />} />
+                  <Route path="/research" element={<Research />} />
+                  <Route path="/news" element={<News />} />
+                  <Route path="/ai-assistant" element={<AIAssistant />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </PortfolioProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </MotionConfig>
   );
 }

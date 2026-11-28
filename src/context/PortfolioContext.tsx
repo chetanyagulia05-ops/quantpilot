@@ -1,12 +1,24 @@
 // ============================================================
-// QuantPilot — Deterministic Portfolio & Paper Trading Ledger
-// Reconciles cash, positions, realized & unrealized P&L,
-// and enforces user account isolation per auth.uid().
+// QuantPilot — Deterministic Portfolio & Real Market Sync Context
+// Synchronizes with Yahoo Finance via Node.js + Python Quant Engine,
+// with deterministic local fallback if offline.
 // ============================================================
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { quantApi, type MarketQuote } from '@/lib/api';
+import { SUPPORTED_TICKERS } from '@/data/ohlcvData';
 import type { Holding, Order, Trade, Portfolio } from '@/types';
+
+export interface NotificationItem {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: 'trade' | 'alert' | 'system';
+  read: boolean;
+  timestamp: string;
+}
 
 interface OrderInput {
   symbol: string;
@@ -24,15 +36,54 @@ interface PortfolioContextType {
   holdings: Holding[];
   orders: Order[];
   trades: Trade[];
-  placeOrder: (input: OrderInput) => { success: boolean; message: string };
-  cancelOrder: (orderId: string) => void;
-  resetPortfolio: () => void;
+  quotes: MarketQuote[];
+  notifications: NotificationItem[];
+  backendConnected: boolean;
+  pythonQuantOnline: boolean;
+  dataSource: string;
+  isSyncingData: boolean;
+  autoTickEnabled: boolean;
+  setAutoTickEnabled: (enabled: boolean) => void;
+  lastMatchedNotice: string | null;
+  clearLastMatchedNotice: () => void;
+  placeOrder: (input: OrderInput) => Promise<{ success: boolean; message: string }>;
+  cancelOrder: (orderId: string) => Promise<void>;
+  resetPortfolio: () => Promise<void>;
+  syncRealData: (refresh?: boolean) => Promise<void>;
+  stepMarketTick: (shock?: { symbol: string; priceChangePct: number }) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   currency: 'INR' | 'USD';
 }
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
-// Initial Indian Rupee Seed Holdings with Deterministic Math
+function getSeedQuotes(): MarketQuote[] {
+  const now = new Date().toISOString();
+  return SUPPORTED_TICKERS.map((t) => {
+    const half = Math.max(0.05, Number((t.basePrice * 0.0003).toFixed(2)));
+    const prevClose = Number((t.basePrice * 0.992).toFixed(2));
+    const change = Number((t.basePrice - prevClose).toFixed(2));
+    return {
+      symbol: t.symbol,
+      name: t.name,
+      exchange: t.exchange,
+      sector: t.sector,
+      currency: (t.currency === 'USD' ? 'USD' : 'INR') as 'INR' | 'USD',
+      basePrice: t.basePrice,
+      lastPrice: t.basePrice,
+      bid: Number((t.basePrice - half).toFixed(2)),
+      ask: Number((t.basePrice + half).toFixed(2)),
+      prevClose,
+      change,
+      changePct: Number(((change / prevClose) * 100).toFixed(2)),
+      volatility: t.volatility,
+      volume: Math.round(t.basePrice * 4500),
+      dataSource: 'INITIAL_SNAPSHOT',
+      updatedAt: now,
+    };
+  });
+}
+
 function getSeedHoldings(userId: string): Holding[] {
   return [
     {
@@ -41,14 +92,14 @@ function getSeedHoldings(userId: string): Holding[] {
       portfolio_id: `port-${userId}`,
       symbol: 'RELIANCE',
       name: 'Reliance Industries Ltd.',
-      quantity: 50,
-      avg_cost: 2850.0,
-      current_price: 2980.5,
-      market_value: 149025.0, // 50 * 2980.5
-      unrealized_pnl: 6525.0,  // (2980.5 - 2850) * 50
-      unrealized_pnl_pct: 4.58,
-      allocation_pct: 0, // dynamically calculated
-      sector: 'Energy & Tech',
+      quantity: 110,
+      avg_cost: 1299.64,
+      current_price: 1382.6,
+      market_value: 152086.0,
+      unrealized_pnl: 9125.6,
+      unrealized_pnl_pct: 6.38,
+      allocation_pct: 0,
+      sector: 'Energy & Digital',
     },
     {
       id: `h-tcs-${userId}`,
@@ -56,12 +107,12 @@ function getSeedHoldings(userId: string): Holding[] {
       portfolio_id: `port-${userId}`,
       symbol: 'TCS',
       name: 'Tata Consultancy Services',
-      quantity: 35,
-      avg_cost: 3950.0,
-      current_price: 4120.0,
-      market_value: 144200.0, // 35 * 4120
-      unrealized_pnl: 5950.0,  // (4120 - 3950) * 35
-      unrealized_pnl_pct: 4.30,
+      quantity: 55,
+      avg_cost: 2443.88,
+      current_price: 2572.5,
+      market_value: 141487.5,
+      unrealized_pnl: 7074.1,
+      unrealized_pnl_pct: 5.26,
       allocation_pct: 0,
       sector: 'IT Services',
     },
@@ -71,12 +122,12 @@ function getSeedHoldings(userId: string): Holding[] {
       portfolio_id: `port-${userId}`,
       symbol: 'INFY',
       name: 'Infosys Limited',
-      quantity: 60,
-      avg_cost: 1540.0,
-      current_price: 1625.0,
-      market_value: 97500.0, // 60 * 1625
-      unrealized_pnl: 5100.0,
-      unrealized_pnl_pct: 5.52,
+      quantity: 90,
+      avg_cost: 1070.71,
+      current_price: 1151.3,
+      market_value: 103617.0,
+      unrealized_pnl: 7253.1,
+      unrealized_pnl_pct: 7.53,
       allocation_pct: 0,
       sector: 'IT Services',
     },
@@ -86,12 +137,12 @@ function getSeedHoldings(userId: string): Holding[] {
       portfolio_id: `port-${userId}`,
       symbol: 'HDFCBANK',
       name: 'HDFC Bank Ltd.',
-      quantity: 80,
-      avg_cost: 1680.0,
-      current_price: 1642.0,
-      market_value: 131360.0, // 80 * 1642
-      unrealized_pnl: -3040.0,
-      unrealized_pnl_pct: -2.26,
+      quantity: 140,
+      avg_cost: 874.4,
+      current_price: 857.25,
+      market_value: 120015.0,
+      unrealized_pnl: -2401.0,
+      unrealized_pnl_pct: -1.96,
       allocation_pct: 0,
       sector: 'Financial Services',
     },
@@ -100,13 +151,13 @@ function getSeedHoldings(userId: string): Holding[] {
       user_id: userId,
       portfolio_id: `port-${userId}`,
       symbol: 'TATAMOTORS',
-      name: 'Tata Motors Ltd.',
-      quantity: 100,
-      avg_cost: 820.0,
-      current_price: 935.0,
-      market_value: 93500.0, // 100 * 935
-      unrealized_pnl: 11500.0,
-      unrealized_pnl_pct: 14.02,
+      name: 'Tata Motors Passenger Vehicles',
+      quantity: 280,
+      avg_cost: 234.78,
+      current_price: 258.0,
+      market_value: 72240.0,
+      unrealized_pnl: 6501.6,
+      unrealized_pnl_pct: 9.89,
       allocation_pct: 0,
       sector: 'Automotive',
     },
@@ -119,33 +170,32 @@ interface UserLedgerState {
   holdings: Holding[];
   orders: Order[];
   trades: Trade[];
+  notifications: NotificationItem[];
 }
 
-const DEFAULT_INITIAL_CASH = 500000.0; // ₹5,00,000 cash balance + ~₹6,15,585 in holdings = ~₹11,15,585 total equity
+const DEFAULT_INITIAL_CASH = 500000.0;
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
   const userId = currentUser.id;
-  const storageKey = `quantpilot_ledger_${userId}`;
+  const storageKey = `quantpilot_ledger_v2_${userId}`;
 
-  // Load user-specific ledger
+  const [quotes, setQuotes] = useState<MarketQuote[]>(getSeedQuotes);
+  const [backendConnected, setBackendConnected] = useState(false);
+  const [pythonQuantOnline, setPythonQuantOnline] = useState(false);
+  const [dataSource, setDataSource] = useState('INITIAL_SNAPSHOT');
+  const [isSyncingData, setIsSyncingData] = useState(false);
+  const [autoTickEnabled, setAutoTickEnabled] = useState(false);
+  const [lastMatchedNotice, setLastMatchedNotice] = useState<string | null>(null);
+
   const [ledger, setLedger] = useState<UserLedgerState>(() => {
-    if (typeof window === 'undefined') {
-      return {
-        cash: DEFAULT_INITIAL_CASH,
-        realizedPnl: 0,
-        holdings: getSeedHoldings(userId),
-        orders: [],
-        trades: [],
-      };
-    }
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        return JSON.parse(stored);
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) return JSON.parse(stored);
+      } catch {
+        // ignore
       }
-    } catch {
-      // fallback
     }
     return {
       cash: DEFAULT_INITIAL_CASH,
@@ -153,32 +203,46 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       holdings: getSeedHoldings(userId),
       orders: [],
       trades: [],
+      notifications: [],
     };
   });
 
-  // When user switches, reload ledger for that user
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(`quantpilot_ledger_${userId}`);
-      if (stored) {
-        setLedger(JSON.parse(stored));
-      } else {
-        const fresh: UserLedgerState = {
-          cash: DEFAULT_INITIAL_CASH,
-          realizedPnl: 0,
-          holdings: getSeedHoldings(userId),
-          orders: [],
-          trades: [],
-        };
-        setLedger(fresh);
-        localStorage.setItem(`quantpilot_ledger_${userId}`, JSON.stringify(fresh));
-      }
-    } catch {
-      // ignore
-    }
-  }, [userId]);
+  const applyServerState = useCallback((state: any) => {
+    if (!state || !state.portfolio) return;
+    if (state.data_source) setDataSource(state.data_source);
+    setLedger({
+      cash: Number(state.portfolio.cash_balance ?? DEFAULT_INITIAL_CASH),
+      realizedPnl: Number(state.portfolio.realized_pnl ?? 0),
+      holdings: state.holdings ?? [],
+      orders: state.orders ?? [],
+      trades: state.trades ?? [],
+      notifications: state.notifications ?? [],
+    });
+  }, []);
 
-  // Persist ledger changes
+  const refreshFromBackend = useCallback(async () => {
+    try {
+      const [health, qRes, pRes] = await Promise.all([
+        quantApi.health(),
+        quantApi.getQuotes(),
+        quantApi.getPortfolio(userId),
+      ]);
+      setBackendConnected(true);
+      setPythonQuantOnline(Boolean(health.python_quant_online));
+      if (qRes.data_source) setDataSource(qRes.data_source);
+      if (qRes.quotes?.length) setQuotes(qRes.quotes);
+      applyServerState(pRes);
+    } catch {
+      setBackendConnected(false);
+      setPythonQuantOnline(false);
+      setDataSource('LOCAL_FALLBACK');
+    }
+  }, [userId, applyServerState]);
+
+  useEffect(() => {
+    refreshFromBackend();
+  }, [refreshFromBackend]);
+
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(ledger));
@@ -187,51 +251,130 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ledger, storageKey]);
 
-  // Reconcile portfolio equity deterministically
-  const holdingsValue = useMemo(() => {
-    return ledger.holdings.reduce((sum, h) => sum + h.quantity * h.current_price, 0);
-  }, [ledger.holdings]);
+  const syncRealData = useCallback(
+    async (refresh = true) => {
+      setIsSyncingData(true);
+      try {
+        const syncRes = await quantApi.syncMarketData(refresh);
+        setBackendConnected(true);
+        setPythonQuantOnline(true);
+        setDataSource(syncRes.data_source);
+        if (syncRes.quotes?.length) setQuotes(syncRes.quotes);
+        const pRes = await quantApi.getPortfolio(userId);
+        applyServerState(pRes);
 
-  const totalInvested = useMemo(() => {
-    return ledger.holdings.reduce((sum, h) => sum + h.quantity * h.avg_cost, 0);
-  }, [ledger.holdings]);
+        const userMatches = (syncRes.matchedEvents || []).filter((m) => m.user_id === userId);
+        if (userMatches.length > 0) {
+          setLastMatchedNotice(
+            `Real-data sync matched ${userMatches.map((m) => `${m.symbol} @ ${m.price.toFixed(2)}`).join(', ')}`
+          );
+        }
+      } catch {
+        // leave current state intact
+      } finally {
+        setIsSyncingData(false);
+      }
+    },
+    [userId, applyServerState]
+  );
 
-  const unrealizedPnl = useMemo(() => {
-    return holdingsValue - totalInvested;
-  }, [holdingsValue, totalInvested]);
+  const stepMarketTick = useCallback(
+    async (shock?: { symbol: string; priceChangePct: number }) => {
+      try {
+        const tickRes = await quantApi.stepTick(shock);
+        setBackendConnected(true);
+        if (tickRes.quotes?.length) setQuotes(tickRes.quotes);
+        const pRes = await quantApi.getPortfolio(userId);
+        applyServerState(pRes);
 
-  const totalEquity = useMemo(() => {
-    return ledger.cash + holdingsValue;
-  }, [ledger.cash, holdingsValue]);
+        const userMatches = (tickRes.matchedEvents || []).filter((m) => m.user_id === userId);
+        if (userMatches.length > 0) {
+          const summary = userMatches.map((m) => `${m.symbol} @ ${m.price.toFixed(2)}`).join(', ');
+          setLastMatchedNotice(`Order Matching Engine executed: ${summary}`);
+        }
+      } catch {
+        setQuotes((prev) =>
+          prev.map((q) => {
+            const pct =
+              shock && shock.symbol === q.symbol
+                ? shock.priceChangePct / 100
+                : (Math.random() - 0.495) * q.volatility * 0.45;
+            const nextPrice = Math.max(1, Number((q.lastPrice * (1 + pct)).toFixed(2)));
+            const half = Math.max(0.05, Number((nextPrice * 0.0003).toFixed(2)));
+            return {
+              ...q,
+              lastPrice: nextPrice,
+              bid: Number((nextPrice - half).toFixed(2)),
+              ask: Number((nextPrice + half).toFixed(2)),
+              change: Number((nextPrice - q.prevClose).toFixed(2)),
+              changePct: Number((((nextPrice - q.prevClose) / q.prevClose) * 100).toFixed(2)),
+              updatedAt: new Date().toISOString(),
+            };
+          })
+        );
+      }
+    },
+    [userId, applyServerState]
+  );
 
-  const totalPnl = useMemo(() => {
-    return ledger.realizedPnl + unrealizedPnl;
-  }, [ledger.realizedPnl, unrealizedPnl]);
+  useEffect(() => {
+    if (!autoTickEnabled) return;
+    const id = window.setInterval(() => {
+      stepMarketTick();
+    }, 4000);
+    return () => clearInterval(id);
+  }, [autoTickEnabled, stepMarketTick]);
 
+  const quoteMap = useMemo(() => {
+    const m = new Map<string, MarketQuote>();
+    for (const q of quotes) m.set(q.symbol, q);
+    return m;
+  }, [quotes]);
+
+  const markedHoldings = useMemo(() => {
+    return ledger.holdings.map((h) => {
+      const q = quoteMap.get(h.symbol);
+      const cp = q ? q.lastPrice : h.current_price;
+      return { ...h, current_price: cp };
+    });
+  }, [ledger.holdings, quoteMap]);
+
+  const holdingsValue = useMemo(
+    () => markedHoldings.reduce((sum, h) => sum + h.quantity * h.current_price, 0),
+    [markedHoldings]
+  );
+
+  const totalInvested = useMemo(
+    () => markedHoldings.reduce((sum, h) => sum + h.quantity * h.avg_cost, 0),
+    [markedHoldings]
+  );
+
+  const unrealizedPnl = holdingsValue - totalInvested;
+  const totalEquity = ledger.cash + holdingsValue;
+  const totalPnl = ledger.realizedPnl + unrealizedPnl;
   const totalPnlPct = useMemo(() => {
     const base = totalInvested > 0 ? totalInvested : DEFAULT_INITIAL_CASH;
     return (totalPnl / base) * 100;
   }, [totalPnl, totalInvested]);
 
-  // Normalized holdings with correct allocation percentage
   const normalizedHoldings = useMemo(() => {
-    return ledger.holdings.map((h) => {
+    return markedHoldings.map((h) => {
       const mVal = h.quantity * h.current_price;
       const uPnl = (h.current_price - h.avg_cost) * h.quantity;
       const uPnlPct = h.avg_cost > 0 ? (uPnl / (h.avg_cost * h.quantity)) * 100 : 0;
       const alloc = totalEquity > 0 ? Number(((mVal / totalEquity) * 100).toFixed(1)) : 0;
       return {
         ...h,
-        market_value: mVal,
-        unrealized_pnl: uPnl,
-        unrealized_pnl_pct: uPnlPct,
+        market_value: Number(mVal.toFixed(2)),
+        unrealized_pnl: Number(uPnl.toFixed(2)),
+        unrealized_pnl_pct: Number(uPnlPct.toFixed(2)),
         allocation_pct: alloc,
       };
     });
-  }, [ledger.holdings, totalEquity]);
+  }, [markedHoldings, totalEquity]);
 
-  const portfolio: Portfolio = useMemo(() => {
-    return {
+  const portfolio: Portfolio = useMemo(
+    () => ({
       id: `port-${userId}`,
       user_id: userId,
       name: `${currentUser.name}'s Portfolio`,
@@ -240,209 +383,76 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       total_invested: Number(totalInvested.toFixed(2)),
       total_pnl: Number(totalPnl.toFixed(2)),
       total_pnl_pct: Number(totalPnlPct.toFixed(2)),
-      created_at: '2024-01-01T00:00:00Z',
+      created_at: '2025-01-01T00:00:00Z',
       updated_at: new Date().toISOString(),
-      _meta: {
-        source: 'DEMO',
-        generatedAt: new Date().toISOString(),
-        disclaimer: 'Deterministic simulated paper trading portfolio ledger.',
-      },
-    };
-  }, [userId, currentUser.name, ledger.cash, totalEquity, totalInvested, totalPnl, totalPnlPct]);
+    }),
+    [userId, currentUser.name, ledger.cash, totalEquity, totalInvested, totalPnl, totalPnlPct]
+  );
 
-  // Execute or record an order
-  const placeOrder = React.useCallback(
-    (input: OrderInput): { success: boolean; message: string } => {
-      const qty = Math.floor(input.quantity);
-    if (qty <= 0) {
-      return { success: false, message: 'Quantity must be at least 1 share.' };
-    }
-
-    const execPrice = input.price > 0 ? input.price : 100;
-    const estTotal = qty * execPrice;
-    const simulatedFee = 20.0; // ₹20 flat brokerage fee standard in India
-
-    if (input.side === 'BUY') {
-      const totalRequired = estTotal + simulatedFee;
-      if (ledger.cash < totalRequired) {
-        return {
-          success: false,
-          message: `Insufficient buying power. Required ₹${totalRequired.toFixed(2)}, Available: ₹${ledger.cash.toFixed(2)}`,
-        };
-      }
-    } else {
-      // SELL validation
-      const existing = ledger.holdings.find((h) => h.symbol === input.symbol);
-      if (!existing || existing.quantity < qty) {
-        return {
-          success: false,
-          message: `Insufficient shares. You own ${existing ? existing.quantity : 0} shares of ${input.symbol}.`,
-        };
-      }
-    }
-
-    const orderId = `ord-${Date.now()}`;
-    const timestamp = new Date().toISOString();
-
-    if (input.order_type === 'MARKET') {
-      // Execute trade immediately
-      const tradeId = `trd-${Date.now()}`;
-
-      if (input.side === 'BUY') {
-        const costWithFee = estTotal + simulatedFee;
-        setLedger((prev) => {
-          const existingIdx = prev.holdings.findIndex((h) => h.symbol === input.symbol);
-          let updatedHoldings: Holding[];
-
-          if (existingIdx >= 0) {
-            const cur = prev.holdings[existingIdx];
-            const newTotalQty = cur.quantity + qty;
-            const newAvgCost = (cur.quantity * cur.avg_cost + estTotal) / newTotalQty;
-            updatedHoldings = [...prev.holdings];
-            updatedHoldings[existingIdx] = {
-              ...cur,
-              quantity: newTotalQty,
-              avg_cost: Number(newAvgCost.toFixed(2)),
-              current_price: execPrice,
-            };
-          } else {
-            const newHolding: Holding = {
-              id: `h-${input.symbol}-${userId}`,
-              user_id: userId,
-              portfolio_id: `port-${userId}`,
-              symbol: input.symbol,
-              name: input.name,
-              quantity: qty,
-              avg_cost: execPrice,
-              current_price: execPrice,
-              market_value: estTotal,
-              unrealized_pnl: 0,
-              unrealized_pnl_pct: 0,
-              allocation_pct: 0,
-              sector: 'Equities',
-            };
-            updatedHoldings = [...prev.holdings, newHolding];
-          }
-
-          const newTrade: Trade = {
-            id: tradeId,
-            user_id: userId,
-            order_id: orderId,
-            symbol: input.symbol,
-            name: input.name,
-            side: 'BUY',
-            quantity: qty,
-            price: execPrice,
-            total: estTotal,
-            fees: simulatedFee,
-            executed_at: timestamp,
-          };
-
-          return {
-            ...prev,
-            cash: prev.cash - costWithFee,
-            holdings: updatedHoldings,
-            trades: [newTrade, ...prev.trades],
-          };
+  const placeOrder = useCallback(
+    async (input: OrderInput): Promise<{ success: boolean; message: string }> => {
+      try {
+        const res = await quantApi.placeOrder(userId, {
+          symbol: input.symbol,
+          side: input.side,
+          order_type: input.order_type,
+          quantity: input.quantity,
+          limit_price: input.limit_price,
+          stop_price: input.stop_price,
         });
-
-        return {
-          success: true,
-          message: `Executed BUY ${qty} shares of ${input.symbol} at ₹${execPrice.toFixed(2)}.`,
-        };
-      } else {
-        // SELL execution
-        setLedger((prev) => {
-          const existing = prev.holdings.find((h) => h.symbol === input.symbol)!;
-          const realizedTradePnl = (execPrice - existing.avg_cost) * qty - simulatedFee;
-          const netProceeds = estTotal - simulatedFee;
-
-          let updatedHoldings: Holding[];
-          if (existing.quantity === qty) {
-            updatedHoldings = prev.holdings.filter((h) => h.symbol !== input.symbol);
-          } else {
-            updatedHoldings = prev.holdings.map((h) =>
-              h.symbol === input.symbol ? { ...h, quantity: h.quantity - qty } : h
-            );
-          }
-
-          const newTrade: Trade = {
-            id: tradeId,
-            user_id: userId,
-            order_id: orderId,
-            symbol: input.symbol,
-            name: input.name,
-            side: 'SELL',
-            quantity: qty,
-            price: execPrice,
-            total: estTotal,
-            fees: simulatedFee,
-            pnl: Number(realizedTradePnl.toFixed(2)),
-            pnl_pct: Number((((execPrice - existing.avg_cost) / existing.avg_cost) * 100).toFixed(2)),
-            executed_at: timestamp,
-          };
-
-          return {
-            ...prev,
-            cash: prev.cash + netProceeds,
-            realizedPnl: prev.realizedPnl + realizedTradePnl,
-            holdings: updatedHoldings,
-            trades: [newTrade, ...prev.trades],
-          };
-        });
-
-        return {
-          success: true,
-          message: `Executed SELL ${qty} shares of ${input.symbol} at ₹${execPrice.toFixed(2)}.`,
-        };
+        if (res.state) applyServerState(res.state);
+        return { success: res.success, message: res.message };
+      } catch (err: any) {
+        if (backendConnected && err?.message) {
+          return { success: false, message: err.message };
+        }
+        return { success: false, message: 'API offline: unable to submit paper order.' };
       }
-    } else {
-      // Pending Limit or Stop Loss order
-      const newOrder: Order = {
-        id: orderId,
-        user_id: userId,
-        portfolio_id: `port-${userId}`,
-        symbol: input.symbol,
-        name: input.name,
-        side: input.side,
-        order_type: input.order_type,
-        quantity: qty,
-        price: execPrice,
-        limit_price: input.limit_price,
-        stop_price: input.stop_price,
-        status: 'PENDING',
-        created_at: timestamp,
-        fees: simulatedFee,
-      };
+    },
+    [userId, backendConnected, applyServerState]
+  );
 
+  const cancelOrder = useCallback(
+    async (orderId: string) => {
+      try {
+        const res = await quantApi.cancelOrder(userId, orderId);
+        if (res.state) applyServerState(res.state);
+      } catch {
+        setLedger((prev) => ({
+          ...prev,
+          orders: prev.orders.map((o) => (o.id === orderId ? { ...o, status: 'CANCELLED' } : o)),
+        }));
+      }
+    },
+    [userId, applyServerState]
+  );
+
+  const resetPortfolio = useCallback(async () => {
+    try {
+      const state = await quantApi.resetPortfolio(userId);
+      applyServerState(state);
+    } catch {
+      setLedger({
+        cash: DEFAULT_INITIAL_CASH,
+        realizedPnl: 0,
+        holdings: getSeedHoldings(userId),
+        orders: [],
+        trades: [],
+        notifications: [],
+      });
+    }
+  }, [userId, applyServerState]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      const res = await quantApi.markNotificationsRead(userId);
+      setLedger((prev) => ({ ...prev, notifications: res.notifications ?? [] }));
+    } catch {
       setLedger((prev) => ({
         ...prev,
-        orders: [newOrder, ...prev.orders],
+        notifications: prev.notifications.map((n) => ({ ...n, read: true })),
       }));
-
-      return {
-        success: true,
-        message: `Placed ${input.order_type} ${input.side} order for ${qty} shares of ${input.symbol}.`,
-      };
     }
-  }, [userId, ledger.cash]);
-
-  const cancelOrder = React.useCallback((orderId: string) => {
-    setLedger((prev) => ({
-      ...prev,
-      orders: prev.orders.map((o) => (o.id === orderId ? { ...o, status: 'CANCELLED' } : o)),
-    }));
-  }, []);
-
-  const resetPortfolio = React.useCallback(() => {
-    const fresh: UserLedgerState = {
-      cash: DEFAULT_INITIAL_CASH,
-      realizedPnl: 0,
-      holdings: getSeedHoldings(userId),
-      orders: [],
-      trades: [],
-    };
-    setLedger(fresh);
   }, [userId]);
 
   const value = useMemo(
@@ -451,12 +461,45 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       holdings: normalizedHoldings,
       orders: ledger.orders,
       trades: ledger.trades,
+      quotes,
+      notifications: ledger.notifications,
+      backendConnected,
+      pythonQuantOnline,
+      dataSource,
+      isSyncingData,
+      autoTickEnabled,
+      setAutoTickEnabled,
+      lastMatchedNotice,
+      clearLastMatchedNotice: () => setLastMatchedNotice(null),
       placeOrder,
       cancelOrder,
       resetPortfolio,
+      syncRealData,
+      stepMarketTick,
+      markAllNotificationsRead,
       currency: currentUser.preferredCurrency,
     }),
-    [portfolio, normalizedHoldings, ledger.orders, ledger.trades, placeOrder, cancelOrder, resetPortfolio, currentUser.preferredCurrency]
+    [
+      portfolio,
+      normalizedHoldings,
+      ledger.orders,
+      ledger.trades,
+      ledger.notifications,
+      quotes,
+      backendConnected,
+      pythonQuantOnline,
+      dataSource,
+      isSyncingData,
+      autoTickEnabled,
+      lastMatchedNotice,
+      placeOrder,
+      cancelOrder,
+      resetPortfolio,
+      syncRealData,
+      stepMarketTick,
+      markAllNotificationsRead,
+      currentUser.preferredCurrency,
+    ]
   );
 
   return <PortfolioContext.Provider value={value}>{children}</PortfolioContext.Provider>;

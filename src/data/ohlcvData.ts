@@ -17,17 +17,21 @@ export interface TickerInfo {
 }
 
 export const SUPPORTED_TICKERS: TickerInfo[] = [
-  { symbol: 'RELIANCE', name: 'Reliance Industries Ltd.', exchange: 'NSE', sector: 'Energy & Digital', basePrice: 2980.50, volatility: 0.018, currency: 'INR' },
-  { symbol: 'TCS', name: 'Tata Consultancy Services', exchange: 'NSE', sector: 'IT Services', basePrice: 4120.00, volatility: 0.014, currency: 'INR' },
-  { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd.', exchange: 'NSE', sector: 'Financial Services', basePrice: 1642.00, volatility: 0.016, currency: 'INR' },
-  { symbol: 'INFY', name: 'Infosys Limited', exchange: 'NSE', sector: 'IT Services', basePrice: 1625.00, volatility: 0.017, currency: 'INR' },
-  { symbol: 'TATAMOTORS', name: 'Tata Motors Ltd.', exchange: 'NSE', sector: 'Automotive', basePrice: 935.00, volatility: 0.024, currency: 'INR' },
-  { symbol: 'NIFTY50', name: 'NIFTY 50 Index', exchange: 'NSE Benchmark', sector: 'Indian Broad Market', basePrice: 22450.00, volatility: 0.011, currency: 'INR' },
-  { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Semiconductors', basePrice: 682.35, volatility: 0.028, currency: 'USD' },
-  { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Consumer Electronics', basePrice: 192.53, volatility: 0.015, currency: 'USD' },
-  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Enterprise Software', basePrice: 398.72, volatility: 0.018, currency: 'USD' },
-  { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Automotive / EV', basePrice: 218.89, volatility: 0.035, currency: 'USD' },
-  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE Arca', sector: 'US Broad Market', basePrice: 478.38, volatility: 0.011, currency: 'USD' },
+  { symbol: 'RELIANCE', name: 'Reliance Industries Ltd.', exchange: 'NSE', sector: 'Energy & Digital', basePrice: 1382.60, volatility: 0.016, currency: 'INR' },
+  { symbol: 'TCS', name: 'Tata Consultancy Services', exchange: 'NSE', sector: 'IT Services', basePrice: 2572.50, volatility: 0.014, currency: 'INR' },
+  { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd.', exchange: 'NSE', sector: 'Financial Services', basePrice: 857.25, volatility: 0.015, currency: 'INR' },
+  { symbol: 'INFY', name: 'Infosys Limited', exchange: 'NSE', sector: 'IT Services', basePrice: 1151.30, volatility: 0.017, currency: 'INR' },
+  { symbol: 'TATAMOTORS', name: 'Tata Motors Passenger Vehicles', exchange: 'NSE', sector: 'Automotive', basePrice: 258.00, volatility: 0.024, currency: 'INR' },
+  { symbol: 'NIFTY50', name: 'NIFTY 50 Index', exchange: 'NSE Benchmark', sector: 'Indian Broad Market', basePrice: 25607.20, volatility: 0.011, currency: 'INR' },
+  { symbol: 'SENSEX', name: 'BSE SENSEX Index', exchange: 'BSE Benchmark', sector: 'Indian Broad Market', basePrice: 83339.26, volatility: 0.011, currency: 'INR' },
+  { symbol: 'BANKNIFTY', name: 'NIFTY Bank Index', exchange: 'NSE Sector', sector: 'Indian Banking', basePrice: 63040.90, volatility: 0.014, currency: 'INR' },
+  { symbol: 'SPX', name: 'S&P 500 Index', exchange: 'US Benchmark', sector: 'US Broad Market', basePrice: 7297.49, volatility: 0.011, currency: 'USD' },
+  { symbol: 'NDX', name: 'NASDAQ 100 Index', exchange: 'US Tech Index', sector: 'US Technology', basePrice: 26726.39, volatility: 0.015, currency: 'USD' },
+  { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', sector: 'Semiconductors', basePrice: 150.49, volatility: 0.028, currency: 'USD' },
+  { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', sector: 'Consumer Electronics', basePrice: 358.54, volatility: 0.015, currency: 'USD' },
+  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', sector: 'Enterprise Software', basePrice: 492.85, volatility: 0.016, currency: 'USD' },
+  { symbol: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', sector: 'Automotive / EV', basePrice: 400.00, volatility: 0.034, currency: 'USD' },
+  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSE Arca', sector: 'US Broad Market', basePrice: 728.32, volatility: 0.011, currency: 'USD' },
 ];
 
 /**

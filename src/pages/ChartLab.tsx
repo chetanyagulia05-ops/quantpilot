@@ -19,11 +19,13 @@ import {
   filterCandlesByTimeframe,
   type TickerInfo,
 } from '@/data/ohlcvData';
+import { quantApi } from '@/lib/api';
 import {
   computeIndicators,
   generateTechnicalReport,
 } from '@/lib/quant/indicators';
 import type {
+  CandleData,
   ChartType,
   IndicatorConfig,
   Timeframe,
@@ -104,6 +106,7 @@ export default function ChartLab() {
   const userId = currentUser.id;
 
   const urlSymbol = searchParams.get('symbol');
+  const urlTf = searchParams.get('tf') as Timeframe | null;
 
   const [selectedTicker, setSelectedTicker] = useState<TickerInfo>(() => {
     if (urlSymbol) {
@@ -131,6 +134,9 @@ export default function ChartLab() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const [timeframe, setTimeframe] = useState<Timeframe>(() => {
+    if (urlTf && ['1D', '1W', '1M', '3M', '1Y', 'ALL'].includes(urlTf)) {
+      return urlTf;
+    }
     try {
       const saved = localStorage.getItem(`quantpilot_chart_layout_${userId}`);
       if (saved) {
@@ -142,6 +148,12 @@ export default function ChartLab() {
     }
     return '3M';
   });
+
+  useEffect(() => {
+    if (urlTf && ['1D', '1W', '1M', '3M', '1Y', 'ALL'].includes(urlTf)) {
+      setTimeframe(urlTf);
+    }
+  }, [urlTf]);
 
   const [chartType, setChartType] = useState<ChartType>(() => {
     try {
@@ -172,18 +184,39 @@ export default function ChartLab() {
   const [analysisRefreshTrigger, setAnalysisRefreshTrigger] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [liveCandles, setLiveCandles] = useState<CandleData[] | null>(null);
+  const [candleSource, setCandleSource] = useState<string>('LOADING');
 
-  // 1. Generate Raw Full Candles for Active Ticker
-  const rawCandles = useMemo(
-    () => generateCandlesForTicker(selectedTicker),
-    [selectedTicker]
-  );
+  useEffect(() => {
+    let active = true;
+    setCandleSource('LOADING');
+    quantApi
+      .getOhlcv(selectedTicker.symbol, timeframe, 380)
+      .then((res) => {
+        if (!active) return;
+        if (res.candles && res.candles.length >= 10) {
+          setLiveCandles(res.candles);
+          setCandleSource(res.data_source || 'YAHOO_FINANCE_LIVE');
+        } else {
+          setLiveCandles(null);
+          setCandleSource('LOCAL_FALLBACK');
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setLiveCandles(null);
+        setCandleSource('LOCAL_FALLBACK');
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedTicker.symbol, timeframe]);
 
-  // 2. Filter Candles for Selected Timeframe
-  const visibleCandles = useMemo(
-    () => filterCandlesByTimeframe(rawCandles, timeframe),
-    [rawCandles, timeframe]
-  );
+  // 1. Use Real Yahoo Finance OHLCV Candles (intraday for 1D/1W/1M, daily for 3M/1Y/ALL)
+  const visibleCandles = useMemo(() => {
+    if (liveCandles && liveCandles.length >= 10) return liveCandles;
+    return filterCandlesByTimeframe(generateCandlesForTicker(selectedTicker), timeframe);
+  }, [liveCandles, selectedTicker, timeframe]);
 
   // 3. Compute Active Technical Indicators
   const indicatorSeries = useMemo(
@@ -199,9 +232,10 @@ export default function ChartLab() {
       selectedTicker.symbol,
       timeframe,
       visibleCandles,
-      indicators
+      indicators,
+      selectedTicker.currency
     );
-  }, [selectedTicker.symbol, timeframe, visibleCandles, indicators, analysisRefreshTrigger]);
+  }, [selectedTicker.symbol, selectedTicker.currency, timeframe, visibleCandles, indicators, analysisRefreshTrigger]);
 
   const runAnalysis = () => {
     setIsAnalyzing(true);
@@ -413,8 +447,14 @@ export default function ChartLab() {
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-text-muted block">Data Mode</span>
-              <Badge variant="warning">High-Res Demo Feed</Badge>
+              <span className="text-[10px] text-text-muted block">Data Feed</span>
+              <Badge variant={candleSource.startsWith('YAHOO') ? 'gain' : 'warning'}>
+                {candleSource === 'LOADING'
+                  ? 'Syncing...'
+                  : candleSource.startsWith('YAHOO')
+                  ? 'Yahoo Finance Live'
+                  : 'Local Fallback'}
+              </Badge>
             </div>
           </div>
         </div>
@@ -468,6 +508,7 @@ export default function ChartLab() {
       <AIAnalysisDrawer
         report={report}
         loading={isAnalyzing}
+        currency={selectedTicker.currency}
         onRunAnalysis={runAnalysis}
         onExecuteCommand={handleExecuteAICommand}
       />

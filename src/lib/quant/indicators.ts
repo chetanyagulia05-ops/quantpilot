@@ -208,7 +208,8 @@ export function calculateMACD(
  */
 export function calculateSupportResistance(
   candles: CandleData[],
-  windowSize = 5
+  windowSize = 5,
+  currencySymbol = '₹'
 ): SupportResistanceLevel[] {
   if (candles.length < windowSize * 2) return [];
 
@@ -251,8 +252,8 @@ export function calculateSupportResistance(
         strength: 1,
         description:
           pivot.price > currentPrice
-            ? `Resistance cluster near $${pivot.price.toFixed(2)}`
-            : `Support cluster near $${pivot.price.toFixed(2)}`,
+            ? `Resistance cluster near ${currencySymbol}${pivot.price.toFixed(2)}`
+            : `Support cluster near ${currencySymbol}${pivot.price.toFixed(2)}`,
       });
     }
   }
@@ -360,12 +361,14 @@ export function generateTechnicalReport(
   symbol: string,
   timeframe: string,
   candles: CandleData[],
-  _configs?: IndicatorConfig[]
+  _configs?: IndicatorConfig[],
+  currency: string = 'INR'
 ): TechnicalAnalysisReport {
   if (candles.length < 20) {
     throw new Error('Insufficient candles for quantitative analysis');
   }
 
+  const sym = currency === 'INR' ? '₹' : '$';
   const lastCandle = candles[candles.length - 1];
   const currentPrice = lastCandle.close;
 
@@ -376,7 +379,7 @@ export function generateTechnicalReport(
   const rsi = calculateRSI(candles, 14);
   const macd = calculateMACD(candles, 12, 26, 9);
   const bb = calculateBollingerBands(candles, 20, 2);
-  const srLevels = calculateSupportResistance(candles);
+  const srLevels = calculateSupportResistance(candles, 5, sym);
 
   const lastIdx = candles.length - 1;
   const currentRSI = rsi[lastIdx] ?? 50;
@@ -395,7 +398,7 @@ export function generateTechnicalReport(
   if (currentPrice > currentSMA50 && currentSMA50 > currentSMA200) {
     evidence.push({
       indicator: 'Moving Average Alignment',
-      currentValue: `Price ($${currentPrice.toFixed(2)}) > SMA50 ($${currentSMA50.toFixed(2)}) > SMA200 ($${currentSMA200.toFixed(2)})`,
+      currentValue: `Price (${sym}${currentPrice.toFixed(2)}) > SMA50 (${sym}${currentSMA50.toFixed(2)}) > SMA200 (${sym}${currentSMA200.toFixed(2)})`,
       signal: 'BULLISH',
       reasoning: 'Bullish moving average stack indicates dominant upward macro trend.',
     });
@@ -403,7 +406,7 @@ export function generateTechnicalReport(
   } else if (currentPrice < currentSMA50 && currentSMA50 < currentSMA200) {
     evidence.push({
       indicator: 'Moving Average Alignment',
-      currentValue: `Price ($${currentPrice.toFixed(2)}) < SMA50 ($${currentSMA50.toFixed(2)}) < SMA200 ($${currentSMA200.toFixed(2)})`,
+      currentValue: `Price (${sym}${currentPrice.toFixed(2)}) < SMA50 (${sym}${currentSMA50.toFixed(2)}) < SMA200 (${sym}${currentSMA200.toFixed(2)})`,
       signal: 'BEARISH',
       reasoning: 'Bearish stack indicates dominant downward trend pressure.',
     });
@@ -411,7 +414,7 @@ export function generateTechnicalReport(
   } else {
     evidence.push({
       indicator: 'Moving Average Alignment',
-      currentValue: `Price: $${currentPrice.toFixed(2)}, SMA50: $${currentSMA50.toFixed(2)}`,
+      currentValue: `Price: ${sym}${currentPrice.toFixed(2)}, SMA50: ${sym}${currentSMA50.toFixed(2)}`,
       signal: 'NEUTRAL',
       reasoning: 'Price consolidating between major moving averages.',
     });
@@ -475,14 +478,14 @@ export function generateTechnicalReport(
   if (currentPrice >= currentBBUpper * 0.98) {
     evidence.push({
       indicator: 'Bollinger Bands (20, 2)',
-      currentValue: `Upper Band: $${currentBBUpper.toFixed(2)}`,
+      currentValue: `Upper Band: ${sym}${currentBBUpper.toFixed(2)}`,
       signal: 'NEUTRAL',
       reasoning: 'Testing upper volatility envelope. Watch for breakout expansion or reversal.',
     });
   } else if (currentPrice <= currentBBLower * 1.02) {
     evidence.push({
       indicator: 'Bollinger Bands (20, 2)',
-      currentValue: `Lower Band: $${currentBBLower.toFixed(2)}`,
+      currentValue: `Lower Band: ${sym}${currentBBLower.toFixed(2)}`,
       signal: 'BULLISH',
       reasoning: 'Testing lower volatility threshold with potential mean-reversion bounce.',
     });
@@ -516,7 +519,7 @@ export function generateTechnicalReport(
     bias: 'BULLISH',
     probabilityPct: overallBias === 'BULLISH' ? 62 : overallBias === 'NEUTRAL' ? 35 : 18,
     title: 'Upward Momentum Continuation',
-    condition: `Sustained breakout and close above 20-period moving average ($${currentSMA20.toFixed(2)}) with expanding volume.`,
+    condition: `Sustained breakout and close above 20-period moving average (${sym}${currentSMA20.toFixed(2)}) with expanding volume.`,
     targetPrice: bullishTarget,
     invalidationPrice: bullishInvalidation,
     expectedReturnPct: bullishReturn,
@@ -528,7 +531,7 @@ export function generateTechnicalReport(
     bias: 'NEUTRAL',
     probabilityPct: overallBias === 'NEUTRAL' ? 50 : 25,
     title: 'Range-Bound Consolidation',
-    condition: `Price oscillates between primary support ($${nearestSupport.toFixed(2)}) and primary resistance ($${nearestResistance.toFixed(2)}).`,
+    condition: `Price oscillates between primary support (${sym}${nearestSupport.toFixed(2)}) and primary resistance (${sym}${nearestResistance.toFixed(2)}).`,
     targetPrice: Number(((nearestSupport + nearestResistance) / 2).toFixed(2)),
     invalidationPrice: Number((nearestSupport * 0.97).toFixed(2)),
     expectedReturnPct: 0.0,
@@ -546,7 +549,7 @@ export function generateTechnicalReport(
     bias: 'BEARISH',
     probabilityPct: overallBias === 'BEARISH' ? 64 : overallBias === 'NEUTRAL' ? 35 : 18,
     title: 'Support Breakdown & Liquidity Sweep',
-    condition: `Decisive breach below support at $${nearestSupport.toFixed(2)} accompanied by high selling volume.`,
+    condition: `Decisive breach below support at ${sym}${nearestSupport.toFixed(2)} accompanied by high selling volume.`,
     targetPrice: bearishTarget,
     invalidationPrice: bearishInvalidation,
     expectedReturnPct: -bearishDrop,
@@ -555,10 +558,10 @@ export function generateTechnicalReport(
 
   const summary =
     overallBias === 'BULLISH'
-      ? `${symbol} displays constructive bullish structure on the ${timeframe} timeframe. Momentum indicators (RSI ${currentRSI.toFixed(1)}, MACD) corroborate upward continuation toward resistance at $${nearestResistance.toFixed(2)}. Invalidation level sits strictly at $${bullishInvalidation.toFixed(2)}.`
+      ? `${symbol} displays constructive bullish structure on the ${timeframe} timeframe. Momentum indicators (RSI ${currentRSI.toFixed(1)}, MACD) corroborate upward continuation toward resistance at ${sym}${nearestResistance.toFixed(2)}. Invalidation level sits strictly at ${sym}${bullishInvalidation.toFixed(2)}.`
       : overallBias === 'BEARISH'
-      ? `${symbol} is under technical distribution pressure on the ${timeframe} timeframe. Selling momentum dominates, targeting support near $${nearestSupport.toFixed(2)}. Scenario invalidates on a clean close above $${bearishInvalidation.toFixed(2)}.`
-      : `${symbol} exhibits neutral equilibrium on the ${timeframe} timeframe. Indicators reflect range-bound consolidation between $${nearestSupport.toFixed(2)} and $${nearestResistance.toFixed(2)}. Breakout confirmation required before directional commitment.`;
+      ? `${symbol} is under technical distribution pressure on the ${timeframe} timeframe. Selling momentum dominates, targeting support near ${sym}${nearestSupport.toFixed(2)}. Scenario invalidates on a clean close above ${sym}${bearishInvalidation.toFixed(2)}.`
+      : `${symbol} exhibits neutral equilibrium on the ${timeframe} timeframe. Indicators reflect range-bound consolidation between ${sym}${nearestSupport.toFixed(2)} and ${sym}${nearestResistance.toFixed(2)}. Breakout confirmation required before directional commitment.`;
 
   return {
     symbol,

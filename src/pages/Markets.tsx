@@ -1,72 +1,117 @@
+// ============================================================
+// QuantPilot — Market Pulse & Real-Time Global Indices
+// Live Yahoo Finance indices, sector returns, and session movers.
+// ============================================================
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, RefreshCw } from 'lucide-react';
 import DemoBanner from '@/components/ui/DemoBanner';
 import Card from '@/components/ui/Card';
 import StatCard from '@/components/ui/StatCard';
 import DataTable, { type Column } from '@/components/ui/DataTable';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
 import { formatCurrency, formatPercent, formatVolume, getChangeColor } from '@/lib/utils';
 import { useTheme } from '@/context/ThemeContext';
+import { usePortfolio } from '@/context/PortfolioContext';
+import { quantApi, type MarketQuote } from '@/lib/api';
 import { demoSectors } from '@/data/demo';
-import type { TopMover } from '@/types';
 
-// Indian & Global Market Indices
-const MARKET_INDICES = [
-  { symbol: 'NIFTY 50', name: 'NSE Benchmark', value: 22450.25, change: 162.80, change_pct: 0.73, region: 'India' },
-  { symbol: 'SENSEX', name: 'BSE Benchmark', value: 73872.10, change: 535.15, change_pct: 0.73, region: 'India' },
-  { symbol: 'BANK NIFTY', name: 'NSE Banking', value: 47920.40, change: 310.60, change_pct: 0.65, region: 'India' },
-  { symbol: 'S&P 500', name: 'US Broad Market', value: 4783.83, change: 28.45, change_pct: 0.60, region: 'US' },
-  { symbol: 'NASDAQ 100', name: 'US Tech Index', value: 16969.22, change: 145.20, change_pct: 0.86, region: 'US' },
-];
-
-const TOP_GAINERS: (TopMover & { currency: 'INR' | 'USD' })[] = [
-  { symbol: 'TATAMOTORS', name: 'Tata Motors Ltd.', price: 935.0, change: 31.2, change_pct: 3.45, volume: 18450000, currency: 'INR' },
-  { symbol: 'INFY', name: 'Infosys Limited', price: 1625.0, change: 33.4, change_pct: 2.10, volume: 12100000, currency: 'INR' },
-  { symbol: 'RELIANCE', name: 'Reliance Industries', price: 2980.5, change: 54.1, change_pct: 1.85, volume: 14200000, currency: 'INR' },
-  { symbol: 'NVDA', name: 'NVIDIA Corp.', price: 682.35, change: 27.0, change_pct: 4.12, volume: 42000000, currency: 'USD' },
-  { symbol: 'TCS', name: 'Tata Consultancy', price: 4120.0, change: 57.7, change_pct: 1.42, volume: 4800000, currency: 'INR' },
-];
-
-const TOP_LOSERS: (TopMover & { currency: 'INR' | 'USD' })[] = [
-  { symbol: 'TSLA', name: 'Tesla Inc.', price: 218.89, change: -5.15, change_pct: -2.30, volume: 68000000, currency: 'USD' },
-  { symbol: 'HDFCBANK', name: 'HDFC Bank Ltd.', price: 1642.0, change: -14.1, change_pct: -0.85, volume: 22000000, currency: 'INR' },
-  { symbol: 'AAPL', name: 'Apple Inc.', price: 192.53, change: -0.81, change_pct: -0.42, volume: 38000000, currency: 'USD' },
-  { symbol: 'ENPH', name: 'Enphase Energy', price: 108.23, change: -12.45, change_pct: -10.32, volume: 15000000, currency: 'USD' },
-  { symbol: 'MRNA', name: 'Moderna', price: 89.56, change: -7.82, change_pct: -8.03, volume: 12000000, currency: 'USD' },
-];
+interface LiveIndex {
+  chartSymbol: string;
+  symbol: string;
+  name: string;
+  value: number;
+  change: number;
+  change_pct: number;
+  region: 'India' | 'US';
+  lastTradeDate?: string;
+}
 
 export default function Markets() {
   const navigate = useNavigate();
   const { resolvedTheme } = useTheme();
+  const { quotes, syncRealData, isSyncingData } = usePortfolio();
   const isDark = resolvedTheme === 'dark';
 
-  const moverColumns: Column<TopMover & { currency: 'INR' | 'USD' }>[] = [
+  const [indices, setIndices] = useState<LiveIndex[]>([
+    { chartSymbol: 'NIFTY50', symbol: 'NIFTY 50', name: 'NSE Benchmark', value: 25607.2, change: -277.3, change_pct: -1.07, region: 'India' },
+    { chartSymbol: 'SENSEX', symbol: 'SENSEX', name: 'BSE Benchmark', value: 83339.26, change: -885.1, change_pct: -1.05, region: 'India' },
+    { chartSymbol: 'BANKNIFTY', symbol: 'BANK NIFTY', name: 'NSE Banking', value: 63040.9, change: -420.5, change_pct: -0.66, region: 'India' },
+    { chartSymbol: 'SPX', symbol: 'S&P 500', name: 'US Broad Market', value: 7297.49, change: 18.4, change_pct: 0.25, region: 'US' },
+    { chartSymbol: 'NDX', symbol: 'NASDAQ 100', name: 'US Tech Index', value: 26726.39, change: 92.1, change_pct: 0.35, region: 'US' },
+  ]);
+  const [sectors, setSectors] = useState<Array<{ name: string; change_pct: number }>>(
+    demoSectors.map((s) => ({ name: s.name, change_pct: s.change_pct }))
+  );
+  const [overviewSource, setOverviewSource] = useState('INITIAL_SNAPSHOT');
+  const [loadingOverview, setLoadingOverview] = useState(false);
+
+  const loadOverview = useCallback(async (refresh = false) => {
+    setLoadingOverview(true);
+    try {
+      const res = await quantApi.getMarketOverview(refresh);
+      if (res.indices?.length) setIndices(res.indices);
+      if (res.sectors?.length) setSectors(res.sectors);
+      setOverviewSource(res.data_source || 'YAHOO_FINANCE_LIVE');
+    } catch {
+      // keep existing
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOverview(false);
+  }, [loadOverview]);
+
+  const handleSyncLive = async () => {
+    await Promise.all([syncRealData(true), loadOverview(true)]);
+  };
+
+  const { gainers, laggards } = useMemo(() => {
+    const equitiesOnly = quotes.filter(
+      (q) => !['NIFTY50', 'SENSEX', 'BANKNIFTY', 'SPX', 'NDX'].includes(q.symbol)
+    );
+    const sorted = [...equitiesOnly].sort((a, b) => b.changePct - a.changePct);
+    return {
+      gainers: sorted.slice(0, 5),
+      laggards: [...sorted].reverse().slice(0, 5),
+    };
+  }, [quotes]);
+
+  const moverColumns: Column<MarketQuote>[] = [
     {
       key: 'symbol',
       header: 'Symbol',
       render: (m) => (
         <button
-          onClick={() => navigate(`/chart-lab?symbol=${m.symbol}`)}
+          type="button"
+          onClick={() => navigate(`/chart-lab?symbol=${m.symbol}&tf=1D`)}
           className="text-left group cursor-pointer"
         >
-          <div className="flex items-center gap-1 font-semibold text-text-primary group-hover:text-brand transition-colors">
+          <div className="flex items-center gap-1 font-mono font-semibold text-foreground group-hover:text-brand">
             <span>{m.symbol}</span>
             <ArrowUpRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <span className="block text-xs text-text-muted">{m.name}</span>
+          <span className="block text-[11px] text-muted-foreground">{m.name}</span>
         </button>
       ),
     },
     {
-      key: 'price',
-      header: 'Price',
+      key: 'lastPrice',
+      header: 'Last Px',
       align: 'right',
-      render: (m) => <span className="font-mono font-medium">{formatCurrency(m.price, m.currency)}</span>,
+      sortable: true,
+      sortType: 'number',
+      sortValue: (m) => m.lastPrice,
+      render: (m) => <span className="font-mono font-medium">{formatCurrency(m.lastPrice, m.currency)}</span>,
     },
     {
       key: 'change',
-      header: 'Change',
+      header: 'Net Chg',
       align: 'right',
       render: (m) => (
         <span className={`font-mono font-medium ${getChangeColor(m.change)}`}>
@@ -76,12 +121,15 @@ export default function Markets() {
       ),
     },
     {
-      key: 'change_pct',
+      key: 'changePct',
       header: '%',
       align: 'right',
+      sortable: true,
+      sortType: 'number',
+      sortValue: (m) => m.changePct,
       render: (m) => (
-        <Badge variant={m.change_pct >= 0 ? 'gain' : 'loss'}>
-          {formatPercent(m.change_pct)}
+        <Badge variant={m.changePct >= 0 ? 'gain' : 'loss'}>
+          {formatPercent(m.changePct)}
         </Badge>
       ),
     },
@@ -89,78 +137,94 @@ export default function Markets() {
       key: 'volume',
       header: 'Volume',
       align: 'right',
-      render: (m) => <span className="text-xs text-text-muted">{formatVolume(m.volume)}</span>,
+      render: (m) => (
+        <span className="font-mono text-[11px] text-muted-foreground">
+          {formatVolume(m.volume, m.currency === 'INR')}
+        </span>
+      ),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <DemoBanner />
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-primary">Market Pulse & Global Indices</h1>
-          <p className="text-sm text-text-secondary">
-            Broad market overview across NSE/BSE Indian benchmarks and US equity sectors
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">
+              Market Pulse &amp; Global Indices
+            </h1>
+            <Badge variant={overviewSource.startsWith('YAHOO') ? 'gain' : 'warning'}>
+              {overviewSource.startsWith('YAHOO') ? 'Yahoo Finance Live' : 'Cached'}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Real-time synchronized benchmarks across NSE/BSE India &amp; US equities · Click any index to open its 1D intraday chart
           </p>
         </div>
-        <Badge variant="brand">Multi-Market Feed</Badge>
+        <Button
+          variant="secondary"
+          size="sm"
+          loading={loadingOverview || isSyncingData}
+          icon={<RefreshCw className="h-3.5 w-3.5 text-gain" />}
+          onClick={handleSyncLive}
+        >
+          Sync Live Feed
+        </Button>
       </div>
 
-      {/* Indices */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        {MARKET_INDICES.map((idx) => (
-          <StatCard
+      {/* Live Indices (clickable -> Chart Lab 1D intraday) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {indices.map((idx) => (
+          <button
             key={idx.symbol}
-            title={`${idx.symbol}`}
-            value={idx.value.toLocaleString(idx.region === 'India' ? 'en-IN' : 'en-US', { minimumFractionDigits: 2 })}
-            change={idx.change}
-            changePct={idx.change_pct}
-          />
+            type="button"
+            onClick={() => navigate(`/chart-lab?symbol=${idx.chartSymbol}&tf=1D`)}
+            className="text-left cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+            title={`Open ${idx.symbol} intraday chart in Chart Lab`}
+          >
+            <StatCard
+              title={idx.symbol}
+              value={idx.value.toLocaleString(idx.region === 'India' ? 'en-IN' : 'en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+              change={idx.change}
+              changePct={idx.change_pct}
+              className="group-hover:border-brand/50"
+            />
+          </button>
         ))}
       </div>
 
       {/* Sector Performance */}
       <Card>
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-text-primary">Sector Performance Overview</h2>
-          <p className="text-xs text-text-muted">Relative intraday performance by industry classification</p>
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Real Sector &amp; Benchmark Proxy Returns</h2>
+          <p className="text-[11px] text-muted-foreground">Latest session return by NSE &amp; US market vertical</p>
         </div>
-        <div className="h-64 w-full">
+        <div className="h-60 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={demoSectors}
+              data={sectors}
               layout="vertical"
-              margin={{ top: 5, right: 30, left: 90, bottom: 5 }}
+              margin={{ top: 4, right: 24, left: 115, bottom: 4 }}
             >
-              <XAxis
-                type="number"
-                stroke={isDark ? '#64748b' : '#94a3b8'}
-                fontSize={12}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <YAxis
-                type="category"
-                dataKey="name"
-                stroke={isDark ? '#94a3b8' : '#64748b'}
-                fontSize={12}
-                tickLine={false}
-              />
+              <XAxis type="number" stroke="#71717a" fontSize={11} tickFormatter={(v) => `${v}%`} />
+              <YAxis type="category" dataKey="name" stroke="#71717a" fontSize={11} tickLine={false} width={110} />
               <Tooltip
-                formatter={(val) => [`${Number(val).toFixed(2)}%`, 'Change']}
+                formatter={(val) => [`${Number(val).toFixed(2)}%`, 'Return']}
                 contentStyle={{
-                  backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                  borderColor: isDark ? '#334155' : '#e2e8f0',
-                  color: isDark ? '#f8fafc' : '#0f172a',
-                  borderRadius: '0.5rem',
+                  backgroundColor: isDark ? '#111114' : '#ffffff',
+                  borderColor: isDark ? '#27272a' : '#e4e4e7',
+                  fontSize: '12px',
+                  borderRadius: '6px',
                 }}
               />
               <Bar dataKey="change_pct" radius={[0, 4, 4, 0]}>
-                {demoSectors.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.change_pct >= 0 ? '#10b981' : '#ef4444'}
-                  />
+                {sectors.map((entry, index) => (
+                  <Cell key={index} fill={entry.change_pct >= 0 ? '#10b981' : '#ef4444'} />
                 ))}
               </Bar>
             </BarChart>
@@ -168,35 +232,37 @@ export default function Markets() {
         </div>
       </Card>
 
-      {/* Gainers and Losers */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Live Leaders & Laggards */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gain">Top Daily Gainers</h2>
-              <p className="text-xs text-text-muted">Highest percentage increases across tracked assets</p>
+              <h2 className="text-sm font-semibold text-gain">Session Leaders</h2>
+              <p className="text-[11px] text-muted-foreground">Strongest percentage gainers</p>
             </div>
-            <Badge variant="gain">Leaders</Badge>
+            <Badge variant="gain">Top 5</Badge>
           </div>
           <DataTable
+            caption="Session leading stocks"
             columns={moverColumns}
-            data={TOP_GAINERS}
+            data={gainers}
             keyExtractor={(m) => m.symbol}
             compact
           />
         </Card>
 
         <Card>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-loss">Top Daily Laggards</h2>
-              <p className="text-xs text-text-muted">Largest percentage pullbacks across tracked assets</p>
+              <h2 className="text-sm font-semibold text-loss">Session Laggards</h2>
+              <p className="text-[11px] text-muted-foreground">Weakest percentage movers</p>
             </div>
-            <Badge variant="loss">Laggards</Badge>
+            <Badge variant="loss">Bottom 5</Badge>
           </div>
           <DataTable
+            caption="Session lagging stocks"
             columns={moverColumns}
-            data={TOP_LOSERS}
+            data={laggards}
             keyExtractor={(m) => m.symbol}
             compact
           />

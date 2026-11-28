@@ -1,13 +1,14 @@
 // ============================================================
 // QuantPilot — Global Stock & Ticker Command Palette (Cmd+K)
-// Fast multi-exchange ticker lookup across Indian and global stocks.
+// Built on native <dialog> via NativeDialog (modern-web-guidance).
 // ============================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ArrowRight, X } from 'lucide-react';
-import { SUPPORTED_TICKERS, type TickerInfo } from '@/data/ohlcvData';
+import NativeDialog from '@/components/ui/NativeDialog';
 import Badge from '@/components/ui/Badge';
+import { usePortfolio } from '@/context/PortfolioContext';
 import { formatCurrency } from '@/lib/utils';
 
 interface GlobalSearchModalProps {
@@ -19,30 +20,16 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const titleId = useId();
+  const { quotes } = usePortfolio();
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => inputRef.current?.focus(), 30);
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        if (isOpen) onClose();
-      }
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const filtered = SUPPORTED_TICKERS.filter((t) => {
+  const filtered = quotes.filter((t) => {
     const q = query.toLowerCase();
     return (
       t.symbol.toLowerCase().includes(q) ||
@@ -52,83 +39,74 @@ export default function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModal
     );
   });
 
-  const handleSelect = (ticker: TickerInfo) => {
+  const handleSelect = (symbol: string) => {
     onClose();
-    navigate(`/chart-lab?symbol=${ticker.symbol}`);
+    navigate(`/chart-lab?symbol=${symbol}`);
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-20 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-xl rounded-2xl border border-border bg-surface shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Search Input Bar */}
-        <div className="flex items-center gap-3 border-b border-border px-4 py-3 bg-surface-secondary">
-          <Search className="h-5 w-5 text-text-muted" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search stocks by ticker, company, or exchange (e.g. RELIANCE, NVDA, TCS)..."
-            className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1 text-text-muted hover:bg-surface hover:text-text-primary"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <NativeDialog isOpen={isOpen} onClose={onClose} ariaLabelledBy={titleId}>
+      <h2 id={titleId} className="sr-only">
+        Search market tickers and instruments
+      </h2>
 
-        {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-2">
-          {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-text-muted">
-              No matching stocks or symbols found for &quot;{query}&quot;.
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filtered.map((ticker) => (
-                <button
-                  key={ticker.symbol}
-                  onClick={() => handleSelect(ticker)}
-                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs hover:bg-surface-secondary transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="font-bold text-sm text-text-primary group-hover:text-brand transition-colors">
-                      {ticker.symbol}
-                    </span>
-                    <Badge variant="neutral">{ticker.exchange}</Badge>
-                    <span className="text-text-secondary truncate max-w-[200px]">
-                      {ticker.name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono font-medium text-text-primary">
-                      {formatCurrency(ticker.basePrice, ticker.currency)}
-                    </span>
-                    <ArrowRight className="h-4 w-4 text-text-muted group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer info */}
-        <div className="flex items-center justify-between border-t border-border-light bg-surface-secondary/50 px-4 py-2 text-[11px] text-text-muted">
-          <span>Press ESC to close</span>
-          <span>Click to open in Chart Lab</span>
-        </div>
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3 bg-secondary/50">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search symbol, company, exchange (e.g. RELIANCE, NVDA, TCS)..."
+          className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close ticker search"
+          className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
-    </div>
+
+      <div className="max-h-80 overflow-y-auto p-2">
+        {filtered.length === 0 ? (
+          <div className="py-8 text-center text-xs text-muted-foreground">
+            No matching instruments found for &ldquo;{query}&rdquo;.
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {filtered.map((ticker) => (
+              <button
+                key={ticker.symbol}
+                type="button"
+                onClick={() => handleSelect(ticker.symbol)}
+                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs hover:bg-accent transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="font-mono font-semibold text-foreground group-hover:text-brand">
+                    {ticker.symbol}
+                  </span>
+                  <Badge variant="neutral">{ticker.exchange}</Badge>
+                  <span className="text-muted-foreground truncate">{ticker.name}</span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="font-mono font-medium text-foreground">
+                    {formatCurrency(ticker.lastPrice, ticker.currency)}
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-brand transition-colors" />
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between border-t border-border bg-secondary/40 px-4 py-2 text-[10px] font-mono text-muted-foreground">
+        <span>ESC TO CLOSE</span>
+        <span>SELECT TO OPEN IN CHART LAB</span>
+      </div>
+    </NativeDialog>
   );
 }
